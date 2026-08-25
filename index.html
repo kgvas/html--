@@ -298,7 +298,12 @@ function starterCode(){
 
 // Вставте сюди URL вашого опублікованого Google Apps Script Web App
 // (закінчується на /exec). Поки тут плейсхолдер, сайт покаже попередження.
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwV-7uv0mb15o2c3wFyFlG6RHiPoYqLOgTXXHA2bg8620b4SwQh8kljiqajZYDwSgeD/exec';
+// Вставте сюди URL вашого опублікованого Google Apps Script Web App
+// (закінчується на /exec). Поки тут плейсхолдер, сайт покаже попередження.
+const APPS_SCRIPT_URL = 'ВСТАВТЕ_СЮДИ_URL_ВЕБ_ДОДАТКУ';
+
+// Пароль для входу в режим викладача. Поміняйте на свій.
+const TEACHER_PASSCODE = 'вчитель2026';
 
 let state = {
   role: 'select',
@@ -309,7 +314,8 @@ let state = {
   keyCount: 0,
   submitted: false,
   teacherRows: [],
-  modalKey: null
+  modalKey: null,
+  teacherUnlocked: false
 };
 
 function el(html){
@@ -385,6 +391,11 @@ async function loadAllSubmissions(){
   }
 }
 
+function teacherTabVisible(){
+  const params = new URLSearchParams(location.search);
+  return params.has('admin') || state.teacherUnlocked || state.role === 'teacher';
+}
+
 function render(){
   const app = document.getElementById('app');
   app.innerHTML = '';
@@ -398,6 +409,7 @@ function render(){
       </div>
     `));
   }
+  const showTeacherTab = teacherTabVisible();
   app.appendChild(el(`
     <header>
       <div>
@@ -406,14 +418,14 @@ function render(){
       </div>
       <nav class="tabs">
         <button data-role="student" class="${state.role==='student'||state.role==='select'?'active':''}">Я студент</button>
-        <button data-role="teacher" class="${state.role==='teacher'?'active':''}">Я викладач</button>
+        ${showTeacherTab ? `<button data-role="teacher" class="${state.role==='teacher'?'active':''}">Я викладач</button>` : ''}
       </nav>
     </header>
   `));
   app.querySelectorAll('nav.tabs button').forEach(b=>{
     b.addEventListener('click', ()=>{
       state.role = b.dataset.role;
-      if(state.role==='teacher'){ refreshTeacher(); }
+      if(state.role==='teacher' && state.teacherUnlocked){ refreshTeacher(); }
       render();
     });
   });
@@ -577,6 +589,33 @@ function renderStudent(section){
 }
 
 function renderTeacher(section){
+  if(!state.teacherUnlocked){
+    section.appendChild(el(`
+      <div class="card" style="max-width:380px;">
+        <h2>Вхід для викладача</h2>
+        <label for="passcode-input">Пароль</label>
+        <input type="text" id="passcode-input" placeholder="Введіть пароль" />
+        <div style="margin-top:14px;">
+          <button class="btn" id="unlock-btn">Увійти</button>
+        </div>
+        <p class="hint" id="passcode-error" style="color:var(--red);"></p>
+      </div>
+    `));
+    const input = section.querySelector('#passcode-input');
+    const tryUnlock = async ()=>{
+      if(input.value === TEACHER_PASSCODE){
+        state.teacherUnlocked = true;
+        await refreshTeacher();
+        render();
+      }else{
+        section.querySelector('#passcode-error').textContent = 'Невірний пароль';
+        input.style.borderColor = 'var(--red)';
+      }
+    };
+    section.querySelector('#unlock-btn').addEventListener('click', tryUnlock);
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter') tryUnlock(); });
+    return;
+  }
   section.appendChild(el(`
     <div class="card">
       <div class="toolbar">
